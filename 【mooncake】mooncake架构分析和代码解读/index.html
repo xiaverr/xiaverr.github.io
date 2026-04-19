@@ -1,0 +1,474 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"><title>【mooncake】mooncake架构分析和代码解读 | xiaver的博客</title><meta name="keywords" content="infra,ai"><meta name="author" content="xiaver"><meta name="copyright" content="xiaver"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#f7f9fe"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-touch-fullscreen" content="yes"><meta name="apple-mobile-web-app-title" content="【mooncake】mooncake架构分析和代码解读"><meta name="application-name" content="【mooncake】mooncake架构分析和代码解读"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="#f7f9fe"><meta property="og:type" content="article"><meta property="og:title" content="【mooncake】mooncake架构分析和代码解读"><meta property="og:url" content="http://example.com/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/index.html"><meta property="og:site_name" content="xiaver的博客"><meta property="og:description" content="什么是mooncake以 KVCache 为中心的分解架构，将预填充和解码集群分开。利用GPU集群中未充分利用的CPU、DRAM和SSD资源来实现KVCache的分解缓存。它在最大化整体有效吞吐量的同时满足与延迟相关的服务级别目标。为了解决高度超载的场景，mooncake制定了基于预测的早期拒绝政策"><meta property="og:locale" content="zh-CN"><meta property="og:image" content="http://example.com/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/mooncake-icon.png"><meta property="article:author" content="xiaver"><meta property="article:tag"><meta name="twitter:card" content="summary"><meta name="twitter:image" content="http://example.com/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/mooncake-icon.png"><meta name="description" content="什么是mooncake以 KVCache 为中心的分解架构，将预填充和解码集群分开。利用GPU集群中未充分利用的CPU、DRAM和SSD资源来实现KVCache的分解缓存。它在最大化整体有效吞吐量的同时满足与延迟相关的服务级别目标。为了解决高度超载的场景，mooncake制定了基于预测的早期拒绝政策"><link rel="shortcut icon" href="https://avatars.githubusercontent.com/u/98373933?v=4"><link rel="canonical" href="http://example.com/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/"><link rel="preconnect" href="//cdn.cbd.int"/><meta name="google-site-verification" content="xxx"/><meta name="baidu-site-verification" content="code-xxx"/><meta name="msvalidate.01" content="xxx"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.cbd.int/node-snackbar@0.1.16/dist/snackbar.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.cbd.int/@fancyapps/ui@6.1.6/dist/fancybox/fancybox.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://npm.elemecdn.com/anzhiyu-theme-static@1.0.0/swiper/swiper.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  linkPageTop: undefined,
+  peoplecanvas: undefined,
+  postHeadAiDescription: {"enable":"flase","gptName":"AnZhiYu","mode":"local","switchBtn":false,"btnLink":"https://afdian.net/item/886a79d4db6711eda42a52540025c377","randomNum":3,"basicWordCount":1000,"key":"xxxx","Referer":"https://xx.xx/"},
+  diytitle: {"enable":true,"leaveTitle":"w(ﾟДﾟ)w 不要走！再看看嘛！","backTitle":"♪(^∇^*)欢迎肥来！"},
+  LA51: undefined,
+  greetingBox: {"enable":true,"default":"晚上好👋","list":[{"greeting":"晚安😴","startTime":0,"endTime":5},{"greeting":"早上好鸭👋, 祝你一天好心情！","startTime":6,"endTime":9},{"greeting":"上午好👋, 状态很好，鼓励一下～","startTime":10,"endTime":10},{"greeting":"11点多啦, 在坚持一下就吃饭啦～","startTime":11,"endTime":11},{"greeting":"午安👋, 宝贝","startTime":12,"endTime":14},{"greeting":"🌈充实的一天辛苦啦！","startTime":14,"endTime":18},{"greeting":"19点喽, 奖励一顿丰盛的大餐吧🍔。","startTime":19,"endTime":19},{"greeting":"晚上好👋, 在属于自己的时间好好放松😌~","startTime":20,"endTime":24}]},
+  twikooEnvId: '',
+  commentBarrageConfig:undefined,
+  music_page_default: "nav_music",
+  root: '/',
+  preloader: {"source":3},
+  friends_vue_info: undefined,
+  navMusic: false,
+  mainTone: undefined,
+  authorStatus: undefined,
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":330},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    simplehomepage: true,
+    post: false
+  },
+  runtime: '天',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: {"copy":true,"copyrightEbable":false,"limitCount":50,"languages":{"author":"作者: xiaver","link":"链接: ","source":"来源: xiaver的博客","info":"著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。","copySuccess":"复制成功，复制和转载请标注本文地址"}},
+  lightbox: 'fancybox',
+  Snackbar: {"chs_to_cht":"你已切换为繁体","cht_to_chs":"你已切换为简体","day_to_night":"你已切换为深色模式","night_to_day":"你已切换为浅色模式","bgLight":"#425AEF","bgDark":"#1f1f1f","position":"top-center"},
+  source: {
+    justifiedGallery: {
+      js: 'https://cdn.cbd.int/flickr-justified-gallery@2.2.0/dist/fjGallery.min.js',
+      css: 'https://cdn.cbd.int/flickr-justified-gallery@2.2.0/dist/fjGallery.css'
+    }
+  },
+  isPhotoFigcaption: false,
+  islazyload: true,
+  isAnchor: false,
+  shortcutKey: undefined,
+  autoDarkmode: true
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  configTitle: 'xiaver的博客',
+  title: '【mooncake】mooncake架构分析和代码解读',
+  postAI: '',
+  pageFillDescription: '什么是mooncake, mooncake架构, Prefill Pool的实现, Prefill加速, 显存优化, 以 KVCache 为中心的调度, 背景知识, 问题抽象, 什么是SLO, PD分离, 什么是以为中心的分解架构将预填充和解码集群分开利用集群中未充分利用的和资源来实现的分解缓存它在最大化整体有效吞吐量的同时满足与延迟相关的服务级别目标为了解决高度超载的场景制定了基于预测的早期拒绝政策简单来说是实现了解码器大模型分离同时为了提高系统吞吐量充分利用了集群中的和资源并且优化了缓存系统还基于预测的早期拒绝政策进一步提高吞吐量架构采用了一种存算分离架构不仅将预填充节点与解码节点分离还通过整合集群的和资源来实现分离式的系统中所有和会共享这样做就可以充分利用各种资源了所以系统存在三种分别为和和这些都是分布式的所以肯定需要一种中心化的管理机构来进行资源调度为了调度所有这些解耦组件在其中心实现了一个名为的全局调度器负责根据和工作负载的当前分布情况来分发请求如果对未来的推理有利它还会复制或交换的某些块这张图展示了块的存储和传输逻辑存储方面在内存中以分页块的形式存储根据请求模式它可以采用如最近最少使用最不经常使用或基于请求特征的算法等缓存淘汰算法当然也可以存储在上同样由完成管理这里只举了内存的例子应该是因为方案速度太慢不满时如果需要获取就可以通过和之间的一个名为的独立基于组件处理系统存在三种分别为和和这些都是分布式的所以肯定需要一种中心化的管理机构来进行资源调度为了调度所有这些解耦组件在其中心实现了一个名为的全局调度器负责根据和工作负载的当前分布情况来分发请求如果对未来的推理有利它还会复制或交换的某些块图中展示一种请求的典型工作流程一旦化完成就会选择一对预填充节点和一个解码节点然后进行重用选定的节点组会接收到一个请求其中包括原始输入可重用的前缀缓存块以及分配给该请求的完整缓存块节点根据前缀缓存块将前缀缓存从远程内存加载到内存中如果不存在前缀缓存则跳过此步骤增量预填充节点组利用前缀缓存完成预填充阶段并将新生成的增量存回内存中如果未缓存的输入数量超过特定阈值预填充阶段将被分割为多个分块并以流水线方式执行选择该阈值旨在充分利用相应的计算能力通常大于个传输前述服务部署在每个节点中用于管理和传输这些缓存每个在其各自的推理实例中作为独立进程运行接收信号以促进高速跨机器的传输此步骤采用异步执行并与上述增量预填充步骤重叠将每一模型层生成的流式传输到目标解码节点的内存从而减少等待时间解码当所有均接收至解码节点的后该请求将以连续批处理的方式加入下一批次根据当前负载预先选择解码节点以确保其不会违反然而由于预估负载在预填充阶段后可能发生变化本地调度程序会对该进行二次检查这种二次检查可能会导致请求被拒绝在这种情况下相应的预填充成本将被浪费的实现加速利用了仅解码器的自回归特性并为长上下文预填充实现了分块流水线并行我们将预填充集群中的每个节点分为一个流水线预填充节点组对于每个请求其输入会被划分为若干分块每个分块的长度均不超过同一请求的不同分块可以由不同节点同时处理从而实现处理并行化并降低提供了两大主要优势与训练中的流水线并行类似它仅在每个流水线阶段的边界处需要跨节点通信这可以轻松与计算重叠这带来了更好的并减少了与传输之间的网络资源争用它天然适配短上下文和长上下文不会给短上下文预填充带来明显的额外开销也避免了频繁的节点分区动态调整显存优化除了计算能力外有限的显存大小也是一种宝贵的资源从理论上讲如果一个请求的大小为处理时间为则其占用成本为如果请求被分块且每个分块的处理在分块预填充中与其他解码请求交错执行将会增加从而导致更大的占用成本由于预填充是逐层处理的且属于计算密集型任务因此可以将的传输和卸载与计算过程重叠从而进一步降低其占用成本在中的加载和存储通过启动和等待操作异步执行在每一层的注意力计算开始之前模型会等待该层的异步加载完成并触发下一层的异步加载在注意力计算完成后系统会启动该层的异步存储一旦所有层的计算完成流程将等待所有异步存储操作完成如图展示了传输重叠使得预填充实例的执行时间大致等同于加载时间或标准预填充时间具体取决于前缀缓存比例与输入长度的关系以为中心的调度背景知识问题抽象模型即服务提供商他们需要解决的问题如何提高服务的工作负载可以看作是解决一个具有多重复杂约束的优化问题优化目标是最大化整体有效吞吐量这直接影响收入同时约束条件反映了不同层级的什么是通常涉及满足延迟相关的需求主要是首个延迟和间延迟预填充阶段和解码阶段具有不同的特性提供商设定了不同的指标来衡量其相应的服务水平目标具体而言预填充阶段主要关注请求到达与生成第一个之间的延迟即首字延迟另一方面解码阶段专注于同一请求中连续生成之间的延迟即间延迟确保满足服务协议中定义的服务水平目标指标对于质量保证至关重要例如这样的指标表示的推理请求其不会超过在相同条件下无干扰运行的单个请求的四倍分离常见的类模型均采用仅解码器结构每个推理请求在逻辑上分为两个阶段预填充阶段和解码阶段在预填充阶段所有输入被并行处理该阶段会生成第一个输出同时存储计算得到的键和值的中间结果即这里的并行计算是指用户输入的所有都是已知的可以一并进行计算解码阶段随后利用该进行自回归生成新的并将计算过程中产生的新和添加到中和阶段具有不同的计算特点在阶段由于能够同时处理输入该阶段通常具有较高的计算密集度短请求除外当用户输入的序列长度为时的时间复杂度是很大时比如处理长文档计算量会急剧上升相比之下由于自回归生成的限制解码阶段在每个批次中一次仅处理一个在引入技术后每一轮只需要计算当前和历史的他的时间复杂度是但是解码阶段需要存储用户输入的和新生成的这使得解码阶段受限于内存并导致计算时间随批处理大小呈次线性增长改图展示了输入序列长度和对和吞吐率的影响',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2026-04-19 22:44:46',
+  postMainColor: '',
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(win=>{
+      win.saveToLocal = {
+        set: (key, value, ttl) => {
+          if (ttl === 0) return
+          const now = Date.now()
+          const expiry = now + ttl * 86400000
+          const item = {
+            value,
+            expiry
+          }
+          localStorage.setItem(key, JSON.stringify(item))
+        },
+      
+        get: key => {
+          const itemStr = localStorage.getItem(key)
+      
+          if (!itemStr) {
+            return undefined
+          }
+          const item = JSON.parse(itemStr)
+          const now = Date.now()
+      
+          if (now > item.expiry) {
+            localStorage.removeItem(key)
+            return undefined
+          }
+          return item.value
+        }
+      }
+    
+      win.getScript = (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        script.onerror = reject
+        script.onload = script.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          script.onload = script.onreadystatechange = null
+          resolve()
+        }
+
+        Object.keys(attr).forEach(key => {
+          script.setAttribute(key, attr[key])
+        })
+
+        document.head.appendChild(script)
+      })
+    
+      win.getCSS = (url, id = false) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onerror = reject
+        link.onload = link.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          link.onload = link.onreadystatechange = null
+          resolve()
+        }
+        document.head.appendChild(link)
+      })
+    
+      win.activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#18171d')
+        }
+      }
+      win.activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f7f9fe')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+          const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+          const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+          const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+          const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+
+          if (t === undefined) {
+            if (isLightMode) activateLightMode()
+            else if (isDarkMode) activateDarkMode()
+            else if (isNotSpecified || hasNoSupport) {
+              const now = new Date()
+              const hour = now.getHours()
+              const isNight = hour <= 6 || hour >= 18
+              isNight ? activateDarkMode() : activateLightMode()
+            }
+            window.matchMedia('(prefers-color-scheme: dark)').addListener(e => {
+              if (saveToLocal.get('theme') === undefined) {
+                e.matches ? activateDarkMode() : activateLightMode()
+              }
+            })
+          } else if (t === 'light') activateLightMode()
+          else activateDarkMode()
+        
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+      const detectApple = () => {
+        if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+          document.documentElement.classList.add('apple')
+        }
+      }
+      detectApple()
+    })(window)</script><meta name="generator" content="Hexo 8.1.1"></head><body data-type="anzhiyu"><div id="web_bg"></div><div id="an_music_bg"></div><div id="loading-box" onclick="document.getElementById(&quot;loading-box&quot;).classList.add(&quot;loaded&quot;)"><div class="loading-bg"><img class="loading-img nolazyload" alt="加载头像" src="/img/avatar.jfif"/><div class="loading-image-dot"></div></div></div><script>const preloader = {
+  endLoading: () => {
+    document.getElementById('loading-box').classList.add("loaded");
+  },
+  initLoading: () => {
+    document.getElementById('loading-box').classList.remove("loaded")
+  }
+}
+window.addEventListener('load',()=> { preloader.endLoading() })
+setTimeout(function(){preloader.endLoading();},10000)
+
+if (true) {
+  document.addEventListener('pjax:send', () => { preloader.initLoading() })
+  document.addEventListener('pjax:complete', () => { preloader.endLoading() })
+}</script><link rel="stylesheet" href="https://cdn.cbd.int/anzhiyu-theme-static@1.1.10/progress_bar/progress_bar.css"/><script async="async" src="https://cdn.cbd.int/pace-js@1.2.4/pace.min.js" data-pace-options="{ &quot;restartOnRequestAfter&quot;:false,&quot;eventLag&quot;:false}"></script><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><div id="nav-group"><span id="blog_name"><a id="site-name" href="/" accesskey="h"><div class="title">xiaver的博客</div><i class="anzhiyufont anzhiyu-icon-house-chimney"></i></a><div id="he-plugin-simple"></div><script>var WIDGET = {
+  "CONFIG": {
+    "modules": "0124",
+    "background": "2",
+    "tmpColor": "FFFFFF",
+    "tmpSize": "16",
+    "cityColor": "FFFFFF",
+    "citySize": "16",
+    "aqiColor": "E8D87B",
+    "aqiSize": "16",
+    "weatherIconSize": "24",
+    "alertIconSize": "18",
+    "padding": "10px 10px 10px 10px",
+    "shadow": "0",
+    "language": "auto",
+    "borderRadius": "20",
+    "fixed": "true",
+    "vertical": "top",
+    "horizontal": "left",
+    "left": "20",
+    "top": "7.1",
+    "key": "df245676fb434a0691ead1c63341cd94"
+  }
+}
+</script><link rel="stylesheet" href="https://widget.qweather.net/simple/static/css/he-simple.css?v=1.4.0"/><script src="https://widget.qweather.net/simple/static/js/he-simple.js?v=1.4.0"></script></span><div class="mask-name-container"><div id="name-container"><a id="page-name" href="javascript:anzhiyu.scrollToDest(0, 500)">PAGE_NAME</a></div></div><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="javascript:void(0);"><span> 文章</span></a><ul class="menus_item_child"><li><a class="site-page child faa-parent animated-hover" href="/archives/"><i class="anzhiyufont anzhiyu-icon-box-archive faa-tada" style="font-size: 0.9em;"></i><span> 隧道</span></a></li><li><a class="site-page child faa-parent animated-hover" href="/categories/"><i class="anzhiyufont anzhiyu-icon-shapes faa-tada" style="font-size: 0.9em;"></i><span> 分类</span></a></li><li><a class="site-page child faa-parent animated-hover" href="/tags/"><i class="anzhiyufont anzhiyu-icon-tags faa-tada" style="font-size: 0.9em;"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><span> 关于</span></a><ul class="menus_item_child"><li><a class="site-page child faa-parent animated-hover" href="/about/"><i class="anzhiyufont anzhiyu-icon-paper-plane faa-tada" style="font-size: 0.9em;"></i><span> 关于本人</span></a></li><li><a class="site-page child faa-parent animated-hover" href="/essay/"><i class="anzhiyufont anzhiyu-icon-lightbulb faa-tada" style="font-size: 0.9em;"></i><span> 闲言碎语</span></a></li><li><a class="site-page child faa-parent animated-hover" href="javascript:toRandomPost()"><i class="anzhiyufont anzhiyu-icon-shoe-prints1 faa-tada" style="font-size: 0.9em;"></i><span> 随便逛逛</span></a></li></ul></div></div></div><div id="nav-right"><div class="nav-button only-home" id="travellings_button" title="随机前往一个开往项目网站"><a class="site-page" onclick="anzhiyu.totraveling()" title="随机前往一个开往项目网站" href="javascript:void(0);" rel="external nofollow" data-pjax-state="external"><i class="anzhiyufont anzhiyu-icon-train"></i></a></div><div class="nav-button" id="randomPost_button"><a class="site-page" onclick="toRandomPost()" title="随机前往一个文章" href="javascript:void(0);"><i class="anzhiyufont anzhiyu-icon-dice"></i></a></div><div id="console"><div class="console-card-group-reward"><ul class="reward-all console-card"><li class="reward-item"><a href="https://npm.elemecdn.com/anzhiyu-blog@1.1.6/img/post/common/qrcode-weichat.png" target="_blank"><img class="post-qr-code-img" alt="微信" src="https://npm.elemecdn.com/anzhiyu-blog@1.1.6/img/post/common/qrcode-weichat.png"/></a><div class="post-qr-code-desc">微信</div></li><li class="reward-item"><a href="https://npm.elemecdn.com/anzhiyu-blog@1.1.6/img/post/common/qrcode-alipay.png" target="_blank"><img class="post-qr-code-img" alt="支付宝" src="https://npm.elemecdn.com/anzhiyu-blog@1.1.6/img/post/common/qrcode-alipay.png"/></a><div class="post-qr-code-desc">支付宝</div></li></ul></div><div class="console-card-group"><div class="console-card-group-left"></div><div class="console-card-group-right"><div class="console-card tags"><div class="card-content"><div class="author-content-item-tips">兴趣点</div><span class="author-content-item-title">寻找你感兴趣的领域</span><div class="card-tags"><div class="item-headline"></div><div class="card-tag-cloud"><a href="/tags/ai/" style="font-size: 1.05rem;">ai<sup>3</sup></a><a href="/tags/infra/" style="font-size: 1.05rem;">infra<sup>3</sup></a><a href="/tags/%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E5%AE%A2/" style="font-size: 1.05rem;">第一篇博客<sup>1</sup></a></div></div><hr/></div></div><div class="console-card history"><div class="item-headline"><i class="anzhiyufont anzhiyu-icon-box-archiv"></i><span>文章</span></div><div class="card-archives"><div class="item-headline"><i class="anzhiyufont anzhiyu-icon-archive"></i><span>归档</span></div><ul class="card-archive-list"><li class="card-archive-list-item"><a class="card-archive-list-link" href="/archives/2026/04/"><span class="card-archive-list-date">四月 2026</span><div class="card-archive-list-count-group"><span class="card-archive-list-count">4</span><span>篇</span></div></a></li></ul></div><hr/></div></div></div><div class="button-group"><div class="console-btn-item"><a class="darkmode_switchbutton" title="显示模式切换" href="javascript:void(0);"><i class="anzhiyufont anzhiyu-icon-moon"></i></a></div><div class="console-btn-item" id="consoleHideAside" onclick="anzhiyu.hideAsideBtn()" title="边栏显示控制"><a class="asideSwitch"><i class="anzhiyufont anzhiyu-icon-arrows-left-right"></i></a></div></div><div class="console-mask" onclick="anzhiyu.hideConsole()" href="javascript:void(0);"></div></div><div class="nav-button" id="nav-totop"><a class="totopbtn" href="javascript:void(0);"><i class="anzhiyufont anzhiyu-icon-arrow-up"></i><span id="percent" onclick="anzhiyu.scrollToDest(0,500)">0</span></a></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);" title="切换"><i class="anzhiyufont anzhiyu-icon-bars"></i></a></div></div></div></nav><div id="post-info"><div id="post-firstinfo"><div class="meta-firstline"><a class="post-meta-original">原创</a><span class="post-meta-categories"><span class="post-meta-separator"></span><i class="anzhiyufont anzhiyu-icon-inbox post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF/" itemprop="url">技术</a><i class="anzhiyufont anzhiyu-icon-angle-right post-meta-separator"></i><i class="anzhiyufont anzhiyu-icon-inbox post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF/cuda/" itemprop="url">cuda</a></span><span class="article-meta tags"><a class="article-meta__tags" href="/tags/infra/" tabindex="-1" itemprop="url"> <span> <i class="anzhiyufont anzhiyu-icon-hashtag"></i>infra</span></a><a class="article-meta__tags" href="/tags/ai/" tabindex="-1" itemprop="url"> <span> <i class="anzhiyufont anzhiyu-icon-hashtag"></i>ai</span></a></span></div></div><h1 class="post-title" itemprop="name headline">【mooncake】mooncake架构分析和代码解读</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="anzhiyufont anzhiyu-icon-calendar-days post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" itemprop="dateCreated datePublished" datetime="2026-04-19T12:27:57.000Z" title="发表于 2026-04-19 20:27:57">2026-04-19</time><span class="post-meta-separator"></span><i class="anzhiyufont anzhiyu-icon-history post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" itemprop="dateCreated datePublished" datetime="2026-04-19T14:44:46.574Z" title="更新于 2026-04-19 22:44:46">2026-04-19</time></span></div><div class="meta-secondline"><span class="post-meta-separator">       </span><span class="post-meta-position" title="作者IP属地为长沙"><i class="anzhiyufont anzhiyu-icon-location-dot"></i>长沙</span></div></div></div><section class="main-hero-waves-area waves-area"><svg class="waves-svg" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" viewBox="0 24 150 28" preserveAspectRatio="none" shape-rendering="auto"><defs><path id="gentle-wave" d="M -160 44 c 30 0 58 -18 88 -18 s 58 18 88 18 s 58 -18 88 -18 s 58 18 88 18 v 44 h -352 Z"></path></defs><g class="parallax"><use href="#gentle-wave" x="48" y="0"></use><use href="#gentle-wave" x="48" y="3"></use><use href="#gentle-wave" x="48" y="5"></use><use href="#gentle-wave" x="48" y="7"></use></g></svg></section><div id="post-top-cover"><img class="nolazyload" id="post-top-bg" src="/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/mooncake-icon.png"></div></header><main id="blog-container"><div class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container" itemscope itemtype="http://example.com/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/"><header><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF/" itemprop="url">技术</a><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF/cuda/" itemprop="url">cuda</a><a href="/tags/infra/" tabindex="-1" itemprop="url">infra</a><a href="/tags/ai/" tabindex="-1" itemprop="url">ai</a><h1 id="CrawlerTitle" itemprop="name headline">【mooncake】mooncake架构分析和代码解读</h1><span itemprop="author" itemscope itemtype="http://schema.org/Person">xiaver</span><time itemprop="dateCreated datePublished" datetime="2026-04-19T12:27:57.000Z" title="发表于 2026-04-19 20:27:57">2026-04-19</time><time itemprop="dateCreated datePublished" datetime="2026-04-19T14:44:46.574Z" title="更新于 2026-04-19 22:44:46">2026-04-19</time></header><h2 id="什么是mooncake"><a href="#什么是mooncake" class="headerlink" title="什么是mooncake"></a>什么是mooncake</h2><p>以 KVCache 为中心的分解架构，将预填充和解码集群分开。利用GPU集群中未充分利用的CPU、DRAM和SSD资源来实现KVCache的分解缓存。它在最大化整体有效吞吐量的同时满足与延迟相关的服务级别目标。为了解决高度超载的场景，mooncake制定了基于预测的早期拒绝政策。</p>
+<p>简单来说，mooncake是实现了解码器大模型PD分离。同时为了提高系统吞吐量，充分利用了集群中的DRAM和SSD资源，并且优化了KVCache缓存系统。mooncake还基于预测的早期拒绝政策进一步提高吞吐量。</p>
+<h2 id="mooncake架构"><a href="#mooncake架构" class="headerlink" title="mooncake架构"></a>mooncake架构</h2><p>Mooncake 采用了一种存算分离架构，不仅将预填充节点与解码节点分离，还通过整合 GPU 集群的 CPU、DRAM、SSD 和 RDMA 资源来实现分离式的 KVCache。</p>
+<p>系统中，所有Prefill Pool和Decoding Pool会共享KV Cache。这样做就可以充分利用各种资源了。</p>
+<p>所以系统存在三种pool，分别为Prefill Pool和Decoding Pool和KV Cache Pool。这些都是分布式的，所以肯定需要一种中心化的管理机构来进行资源调度。为了调度所有这些解耦组件，Mooncake 在其中心实现了一个名为 Conductor 的全局调度器。 Conductor 负责根据 KVCache 和工作负载的当前分布情况来分发请求。 如果对未来的推理有利，它还会复制或交换 KVCache 的某些块。</p>
+<p><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="https://yiyibooks.cn/__trs__/arxiv/2407.00079v4/x1.png" alt="Refer to caption"></p>
+<p>这张图展示了KVCache 块的存储和传输逻辑。存储方面；在 CPU 内存中，KVCache 以分页块的形式存储。 根据请求模式，它可以采用如 LRU（最近最少使用）、LFU（最不经常使用）或基于请求特征的算法等缓存淘汰算法。当然，KVCache也可以存储在SSD上，同样由CPU完成管理。这里只举了内存的例子，应该是因为SSD方案速度太慢，不满时SLO。</p>
+<p><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="https://yiyibooks.cn/__trs__/arxiv/2407.00079v4/x3.png" alt="Refer to caption"></p>
+<p>GPU如果需要获取KV Cache，就可以通过CPU 和 GPU 之间的一个名为 Messenger 的独立（基于 GPUDirect）RDMA 组件处理。</p>
+<p>系统存在三种pool，分别为Prefill Pool和Decoding Pool和KV Cache Pool。这些都是分布式的，所以肯定需要一种中心化的管理机构来进行资源调度。为了调度所有这些解耦组件，Mooncake 在其中心实现了一个名为 Conductor 的全局调度器。 Conductor 负责根据 KVCache 和工作负载的当前分布情况来分发请求。 如果对未来的推理有利，它还会复制或交换 KVCache 的某些块。</p>
+<p>图中展示一种请求的典型工作流程。一旦 Token 化完成，Conductor 就会选择一对预填充（prefill）节点和一个解码（decoding）节点。然后进行：</p>
+<ol>
+<li><em>KVCache 重用：</em> Conductor 选定的Prefill节点（组）会接收到一个请求，其中包括原始输入、可重用的前缀缓存块 ID，以及分配给该请求的完整缓存块 ID。Prefill节点根据前缀缓存块 ID 将前缀缓存从远程 CPU 内存加载到 GPU 内存中。如果不存在前缀缓存，则跳过此步骤。</li>
+<li><em>增量预填充（Incremental Prefill）：</em> Prefill节点（组）利用前缀缓存（prefix cache）完成预填充阶段，并将新生成的增量 KVCache 存回 CPU 内存中。 如果未缓存的输入 Token 数量超过特定阈值（prefill_chunk），预填充阶段将被分割为多个分块（chunk），并以流水线方式执行。 选择该阈值旨在充分利用相应 GPU 的计算能力，通常大于 1000 个 Token。</li>
+<li><em>KVCache 传输：</em> 前述 Messenger 服务部署在每个节点中，用于管理和传输这些缓存。 每个 Messenger 在其各自的推理实例中作为独立进程运行，接收信号以促进高速、跨机器的 KVCache 传输。 此步骤采用异步执行，并与上述增量预填充步骤重叠，将每一模型层生成的 KVCache 流式传输到目标解码节点的 CPU 内存，从而减少等待时间。</li>
+<li><em>解码（Decoding）：</em> 当所有 KVCache 均接收至解码节点的 CPU DRAM 后，该请求将以连续批处理（continuous batching）的方式加入下一批次。 Conductor 根据当前负载预先选择解码节点，以确保其不会违反 TBT SLO。 然而，由于预估负载在预填充阶段后可能发生变化，本地调度程序会对该 SLO 进行二次检查。 这种二次检查可能会导致请求被拒绝，在这种情况下，相应的预填充成本将被浪费。</li>
+</ol>
+<p><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="https://yiyibooks.cn/__trs__/arxiv/2407.00079v4/x4.png" alt="Refer to caption"></p>
+<h2 id="Prefill-Pool的实现"><a href="#Prefill-Pool的实现" class="headerlink" title="Prefill Pool的实现"></a>Prefill Pool的实现</h2><h3 id="Prefill加速"><a href="#Prefill加速" class="headerlink" title="Prefill加速"></a>Prefill加速</h3><p>Mooncake 利用了仅解码器（decoder-only）Transformer 的自回归特性，并为长上下文预填充实现了分块流水线并行（CPP）。 我们将预填充集群中的每 X 个节点分为一个流水线预填充节点组。 对于每个请求，其输入 Token 会被划分为若干分块，每个分块的长度均不超过 prefill_chunk。 同一请求的不同分块可以由不同节点同时处理，从而实现处理并行化并降低 TTFT。</p>
+<p>CPP 提供了两大主要优势：<em>1)</em> 与训练中的流水线并行类似，它仅在每个流水线阶段的边界处需要跨节点通信，这可以轻松与计算重叠。 这带来了更好的 MFU，并减少了与 KVCache 传输之间的网络资源争用。 <em>2)</em> 它天然适配短上下文和长上下文，不会给短上下文预填充带来明显的额外开销，也避免了频繁的节点分区动态调整。 </p>
+<h3 id="显存优化"><a href="#显存优化" class="headerlink" title="显存优化"></a>显存优化</h3><p>除了计算能力外，有限的显存（VRAM）大小也是一种宝贵的资源。</p>
+<p>从理论上讲，如果一个请求的 KVCache 大小为 S，处理时间为 T，则其占用成本为 S∗T。 如果请求被分块，且每个分块的处理在分块预填充中与其他解码请求交错执行，T 将会增加，从而导致更大的占用成本。</p>
+<p>由于预填充是逐层处理的且属于计算密集型任务，因此可以将 KVCache 的传输和卸载与计算过程重叠，从而进一步降低其占用成本。 </p>
+<p>在 Mooncake 中，KVCache 的加载和存储通过启动（launch）和等待（wait）操作异步执行。 在每一层的注意力计算开始之前，模型会等待该层 KVCache 的异步加载完成，并触发下一层的 KVCache 异步加载。 在注意力计算完成后，系统会启动该层 KVCache 的异步存储。 一旦所有层的计算完成，流程将等待所有异步存储操作完成。</p>
+<p>如图展示了传输重叠使得预填充实例的执行时间大致等同于 KVCache 加载时间或标准预填充时间，具体取决于前缀缓存比例与输入长度的关系。 </p>
+<p><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="https://yiyibooks.cn/__trs__/arxiv/2407.00079v4/x7.png" alt="Refer to caption"></p>
+<h2 id="以-KVCache-为中心的调度"><a href="#以-KVCache-为中心的调度" class="headerlink" title="以 KVCache 为中心的调度"></a>以 KVCache 为中心的调度</h2><h2 id="背景知识"><a href="#背景知识" class="headerlink" title="背景知识"></a>背景知识</h2><h3 id="问题抽象"><a href="#问题抽象" class="headerlink" title="问题抽象"></a>问题抽象</h3><p>“模型即服务”（MaaS）提供商，他们需要解决的问题：如何提高LLM服务的工作负载，可以看作是解决一个具有多重复杂约束的优化问题。优化目标是最大化整体有效吞吐量（这直接影响收入），同时约束条件反映了不同层级的 SLO。</p>
+<h3 id="什么是SLO"><a href="#什么是SLO" class="headerlink" title="什么是SLO"></a>什么是SLO</h3><p>SLO 通常涉及满足延迟相关的需求，主要是首个 Token 延迟（TTFT）和 Token 间延迟（TBT）。</p>
+<p>预填充阶段和解码阶段具有不同的特性，MaaS 提供商设定了不同的指标来衡量其相应的服务水平目标（SLO）。 具体而言，预填充阶段主要关注请求到达与生成第一个 Token 之间的延迟，即首字延迟（TTFT）。 另一方面，解码阶段专注于同一请求中连续生成 Token 之间的延迟，即 Token 间延迟（TBT）。</p>
+<p>确保满足服务协议中定义的服务水平目标（SLO）指标对于质量保证至关重要。 例如，TTFTP90&#x3D;4× 这样的指标表示 90% 的推理请求其 TTFT 不会超过在相同条件下无干扰运行的单个请求 TTFT 的四倍。</p>
+<h3 id="PD分离"><a href="#PD分离" class="headerlink" title="PD分离"></a>PD分离</h3><p>常见的 Transformer 类模型均采用仅解码器 (decoder-only) 结构。 每个推理请求在逻辑上分为两个阶段：预填充 (prefill) 阶段和解码 (decoding) 阶段。</p>
+<p>在prefill（预填充）阶段，所有输入 Token 被并行处理。 该阶段会生成第一个输出 Token，同时存储计算得到的键 (key) 和值 (value) 的中间结果，即 KVCache。 </p>
+<blockquote>
+<p>这里的并行计算是指，用户输入的所有 Token都是已知的，可以一并进行<strong>Attention 计算</strong></p>
+</blockquote>
+<p>decoding（解码）阶段随后利用该 KVCache 进行自回归生成新的 Token，并将计算过程中产生的新 Key 和 Value 添加到 KVCache 中。</p>
+<p>prefill和decoding阶段具有不同的计算特点。在prefill阶段，由于能够同时处理输入 Token，该阶段通常具有较高的计算密集度，短请求除外。当用户输入的序列长度为N时，Attention的时间复杂度是<strong>O(N² · d)</strong>。N 很大时（比如处理长文档），计算量会急剧上升。</p>
+<p>相比之下，由于自回归生成的限制，解码阶段在每个批次中一次仅处理一个 Token。 在引入KV Cache技术后，每一轮只需要计算当前token和历史token的attention，他的时间复杂度是O(N · d)。但是解码阶段需要存储用户输入token的KV Cache和新生成token的KV Cache，这使得解码阶段受限于内存，并导致计算时间随批处理大小呈次线性增长。</p>
+<p><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="https://yiyibooks.cn/__trs__/arxiv/2407.00079v4/x2.png" alt="Refer to caption"></p>
+<p>改图展示了输入序列长度和batch Size对prefill、decoding和吞吐率的影响。</p>
+<h2 id=""><a href="#" class="headerlink" title=""></a></h2></article><div class="post-copyright"><div class="copyright-cc-box"><i class="anzhiyufont anzhiyu-icon-copyright"></i></div><div class="post-copyright__author_box"><a class="post-copyright__author_img" href="/" title="头像"><img class="post-copyright__author_img_back" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/img/avatar.jfif" title="头像" alt="头像"><img class="post-copyright__author_img_front" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/img/avatar.jfif" title="头像" alt="头像"></a><div class="post-copyright__author_name">xiaver</div><div class="post-copyright__author_desc"></div></div><div class="post-copyright__post__info"><a class="post-copyright__original" title="该文章为原创文章，注意版权协议" href="http://example.com/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/">原创</a><a class="post-copyright-title"><span onclick="rm.copyPageUrl('http://example.com/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/')">【mooncake】mooncake架构分析和代码解读</span></a></div><div class="post-tools" id="post-tools"><div class="post-tools-left"><div class="rewardLeftButton"></div><div class="shareRight"><script>function copyCurrentPageUrl() {
+  var currentPageUrl = window.location.href;
+  var input = document.createElement("input");
+  input.setAttribute("value", currentPageUrl);
+  document.body.appendChild(input);
+  input.select();
+  input.setSelectionRange(0, 99999);
+  document.execCommand("copy");
+  document.body.removeChild(input);
+}</script><div class="share-link copyurl"><div class="share-button" id="post-share-url" title="复制链接" onclick="copyCurrentPageUrl()"><i class="anzhiyufont anzhiyu-icon-link"></i></div></div></div></div></div><div class="post-copyright__notice"><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="http://example.com" target="_blank">xiaver的博客</a>！</span></div></div><div class="post-tools-right"><div class="tag_share"><div class="post-meta__box"><div class="post-meta__box__category-list"><a class="post-meta__box__categoryes" href="/categories/%E6%8A%80%E6%9C%AF/"><span class="categoryes-punctuation"> <i class="anzhiyufont anzhiyu-icon-inbox"></i></span>技术<span class="categoryesPageCount">3</span></a><a class="post-meta__box__categoryes" href="/categories/%E6%8A%80%E6%9C%AF/cuda/"><span class="categoryes-punctuation"> <i class="anzhiyufont anzhiyu-icon-inbox"></i></span>cuda<span class="categoryesPageCount">3</span></a></div><div class="post-meta__box__tag-list"><a class="post-meta__box__tags" href="/tags/infra/"><span class="tags-punctuation"> <i class="anzhiyufont anzhiyu-icon-tag"></i></span>infra<span class="tagsPageCount">3</span></a><a class="post-meta__box__tags" href="/tags/ai/"><span class="tags-punctuation"> <i class="anzhiyufont anzhiyu-icon-tag"></i></span>ai<span class="tagsPageCount">3</span></a></div></div></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-full"><a href="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80/"><img class="prev-cover" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80/cuda.jpeg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">【CUDA C】CUDA编程基础</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="anzhiyufont anzhiyu-icon-thumbs-up fa-fw" style="font-size: 1.5rem; margin-right: 4px"></i><span>喜欢这篇文章的人也看了</span></div><div class="relatedPosts-list"><div><a href="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80/" title="【CUDA C】CUDA编程基础"><img class="cover" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80/cuda.jpeg" alt="cover"><div class="content is-center"><div class="date"><i class="anzhiyufont anzhiyu-icon-calendar-days fa-fw"></i> 2026-04-16</div><div class="title">【CUDA C】CUDA编程基础</div></div></a></div><div><a href="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E6%A8%A1%E5%9E%8B/" title="【CUDA C】CUDA编程模型"><img class="cover" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E6%A8%A1%E5%9E%8B/nvidia.jpeg" alt="cover"><div class="content is-center"><div class="date"><i class="anzhiyufont anzhiyu-icon-calendar-days fa-fw"></i> 2026-04-15</div><div class="title">【CUDA C】CUDA编程模型</div></div></a></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="card-content"><div class="author-info-avatar"><img class="avatar-img" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/img/avatar.jfif" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info__description">分享知识、心得</div><div class="author-info__bottom-group"><a class="author-info__bottom-group-left" target="_blank" rel="noopener" href="https://github.com/xiaverr?tab=repositories"><h1 class="author-info__name">xiaver</h1><div class="author-info__desc"></div></a><div class="card-info-social-icons is-center"><a class="social-icon faa-parent animated-hover" href="https://github.com/xiaverr?tab=repositories" target="_blank" title="Github"><i class="anzhiyufont anzhiyu-icon-github"></i></a></div></div></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="anzhiyufont anzhiyu-icon-bars"></i><span>文章目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%80%E4%B9%88%E6%98%AFmooncake"><span class="toc-number">1.</span> <span class="toc-text">什么是mooncake</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#mooncake%E6%9E%B6%E6%9E%84"><span class="toc-number">2.</span> <span class="toc-text">mooncake架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Prefill-Pool%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="toc-number">3.</span> <span class="toc-text">Prefill Pool的实现</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Prefill%E5%8A%A0%E9%80%9F"><span class="toc-number">3.1.</span> <span class="toc-text">Prefill加速</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%98%BE%E5%AD%98%E4%BC%98%E5%8C%96"><span class="toc-number">3.2.</span> <span class="toc-text">显存优化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%A5-KVCache-%E4%B8%BA%E4%B8%AD%E5%BF%83%E7%9A%84%E8%B0%83%E5%BA%A6"><span class="toc-number">4.</span> <span class="toc-text">以 KVCache 为中心的调度</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E7%9F%A5%E8%AF%86"><span class="toc-number">5.</span> <span class="toc-text">背景知识</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%E6%8A%BD%E8%B1%A1"><span class="toc-number">5.1.</span> <span class="toc-text">问题抽象</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%80%E4%B9%88%E6%98%AFSLO"><span class="toc-number">5.2.</span> <span class="toc-text">什么是SLO</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PD%E5%88%86%E7%A6%BB"><span class="toc-number">5.3.</span> <span class="toc-text">PD分离</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-number">6.</span> <span class="toc-text"></span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="anzhiyufont anzhiyu-icon-history"></i><span>最近发布</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/" title="【mooncake】mooncake架构分析和代码解读"><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/mooncake-icon.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="【mooncake】mooncake架构分析和代码解读"/></a><div class="content"><a class="title" href="/%E3%80%90mooncake%E3%80%91mooncake%E6%9E%B6%E6%9E%84%E5%88%86%E6%9E%90%E5%92%8C%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%AF%BB/" title="【mooncake】mooncake架构分析和代码解读">【mooncake】mooncake架构分析和代码解读</a><time datetime="2026-04-19T12:27:57.000Z" title="发表于 2026-04-19 20:27:57">2026-04-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80/" title="【CUDA C】CUDA编程基础"><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80/cuda.jpeg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="【CUDA C】CUDA编程基础"/></a><div class="content"><a class="title" href="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80/" title="【CUDA C】CUDA编程基础">【CUDA C】CUDA编程基础</a><time datetime="2026-04-16T02:37:49.000Z" title="发表于 2026-04-16 10:37:49">2026-04-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E6%A8%A1%E5%9E%8B/" title="【CUDA C】CUDA编程模型"><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E6%A8%A1%E5%9E%8B/nvidia.jpeg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="【CUDA C】CUDA编程模型"/></a><div class="content"><a class="title" href="/%E3%80%90CUDA-C%E3%80%91CUDA%E7%BC%96%E7%A8%8B%E6%A8%A1%E5%9E%8B/" title="【CUDA C】CUDA编程模型">【CUDA C】CUDA编程模型</a><time datetime="2026-04-15T07:04:50.000Z" title="发表于 2026-04-15 15:04:50">2026-04-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/%E6%88%91%E7%9A%84%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E5%AE%A2/" title="我的第一篇博客"><img src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/%E6%88%91%E7%9A%84%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E5%AE%A2/image-20260416100123673.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="我的第一篇博客"/></a><div class="content"><a class="title" href="/%E6%88%91%E7%9A%84%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E5%AE%A2/" title="我的第一篇博客">我的第一篇博客</a><time datetime="2026-04-13T15:30:43.000Z" title="发表于 2026-04-13 23:30:43">2026-04-13</time></div></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div id="workboard"><div id="runtimeTextTip"></div></div></div><div id="footer-bar"><div class="footer-bar-links"><div class="footer-bar-left"><div id="footer-bar-tips"><div class="copyright">&copy;2026 By <a class="footer-bar-link" href="/" title="xiaver" target="_blank">xiaver</a></div></div><div id="footer-type-tips"></div></div><div class="footer-bar-right"><a class="footer-bar-link" href="/null"></a></div></div></div></footer></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="sidebar-site-data site-data is-center"><a href="/archives/" title="archive"><div class="headline">文章</div><div class="length-num">4</div></a><a href="/tags/" title="tag"><div class="headline">标签</div><div class="length-num">3</div></a><a href="/categories/" title="category"><div class="headline">分类</div><div class="length-num">4</div></a></div><span class="sidebar-menu-item-title">功能</span><div class="sidebar-menu-item"><a class="darkmode_switchbutton menu-child" href="javascript:void(0);" title="显示模式"><i class="anzhiyufont anzhiyu-icon-circle-half-stroke"></i><span>显示模式</span></a></div><div class="back-menu-list-groups"><div class="back-menu-list-group"><div class="back-menu-list-title">网页</div><div class="back-menu-list"><a class="back-menu-item" target="_blank" rel="noopener" href="https://hexo.anheyu.com/" title="博客"><img class="back-menu-item-icon" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="/img/favicon.ico" alt="博客"/><span class="back-menu-item-text">博客</span></a></div></div><div class="back-menu-list-group"><div class="back-menu-list-title">项目</div><div class="back-menu-list"><a class="back-menu-item" target="_blank" rel="noopener" href="https://image.anheyu.com/" title="安知鱼图床"><img class="back-menu-item-icon" src= "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.onerror=null,this.src=&quot;/img/404.jpg&quot;" data-lazy-src="https://image.anheyu.com/favicon.ico" alt="安知鱼图床"/><span class="back-menu-item-text">安知鱼图床</span></a></div></div></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="javascript:void(0);"><span> 文章</span></a><ul class="menus_item_child"><li><a class="site-page child faa-parent animated-hover" href="/archives/"><i class="anzhiyufont anzhiyu-icon-box-archive faa-tada" style="font-size: 0.9em;"></i><span> 隧道</span></a></li><li><a class="site-page child faa-parent animated-hover" href="/categories/"><i class="anzhiyufont anzhiyu-icon-shapes faa-tada" style="font-size: 0.9em;"></i><span> 分类</span></a></li><li><a class="site-page child faa-parent animated-hover" href="/tags/"><i class="anzhiyufont anzhiyu-icon-tags faa-tada" style="font-size: 0.9em;"></i><span> 标签</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="javascript:void(0);"><span> 关于</span></a><ul class="menus_item_child"><li><a class="site-page child faa-parent animated-hover" href="/about/"><i class="anzhiyufont anzhiyu-icon-paper-plane faa-tada" style="font-size: 0.9em;"></i><span> 关于本人</span></a></li><li><a class="site-page child faa-parent animated-hover" href="/essay/"><i class="anzhiyufont anzhiyu-icon-lightbulb faa-tada" style="font-size: 0.9em;"></i><span> 闲言碎语</span></a></li><li><a class="site-page child faa-parent animated-hover" href="javascript:toRandomPost()"><i class="anzhiyufont anzhiyu-icon-shoe-prints1 faa-tada" style="font-size: 0.9em;"></i><span> 随便逛逛</span></a></li></ul></div></div><span class="sidebar-menu-item-title">标签</span><div class="card-tags"><div class="item-headline"></div><div class="card-tag-cloud"><a href="/tags/ai/" style="font-size: 0.88rem;">ai<sup>3</sup></a><a href="/tags/infra/" style="font-size: 0.88rem;">infra<sup>3</sup></a><a href="/tags/%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E5%AE%A2/" style="font-size: 0.88rem;">第一篇博客<sup>1</sup></a></div></div><hr/></div></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="anzhiyufont anzhiyu-icon-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="anzhiyufont anzhiyu-icon-circle-half-stroke"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="anzhiyufont anzhiyu-icon-arrows-left-right"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="anzhiyufont anzhiyu-icon-gear"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="anzhiyufont anzhiyu-icon-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><i class="anzhiyufont anzhiyu-icon-arrow-up"></i></button></div></div><div id="rightMenu"><div class="rightMenu-group rightMenu-small"><div class="rightMenu-item" id="menu-backward"><i class="anzhiyufont anzhiyu-icon-arrow-left"></i></div><div class="rightMenu-item" id="menu-forward"><i class="anzhiyufont anzhiyu-icon-arrow-right"></i></div><div class="rightMenu-item" id="menu-refresh"><i class="anzhiyufont anzhiyu-icon-arrow-rotate-right" style="font-size: 1rem;"></i></div><div class="rightMenu-item" id="menu-top"><i class="anzhiyufont anzhiyu-icon-arrow-up"></i></div></div><div class="rightMenu-group rightMenu-line rightMenuPlugin"><div class="rightMenu-item" id="menu-copytext"><i class="anzhiyufont anzhiyu-icon-copy"></i><span>复制选中文本</span></div><div class="rightMenu-item" id="menu-pastetext"><i class="anzhiyufont anzhiyu-icon-paste"></i><span>粘贴文本</span></div><a class="rightMenu-item" id="menu-commenttext"><i class="anzhiyufont anzhiyu-icon-comment-medical"></i><span>引用到评论</span></a><div class="rightMenu-item" id="menu-newwindow"><i class="anzhiyufont anzhiyu-icon-window-restore"></i><span>新窗口打开</span></div><div class="rightMenu-item" id="menu-copylink"><i class="anzhiyufont anzhiyu-icon-link"></i><span>复制链接地址</span></div><div class="rightMenu-item" id="menu-copyimg"><i class="anzhiyufont anzhiyu-icon-images"></i><span>复制此图片</span></div><div class="rightMenu-item" id="menu-downloadimg"><i class="anzhiyufont anzhiyu-icon-download"></i><span>下载此图片</span></div><div class="rightMenu-item" id="menu-newwindowimg"><i class="anzhiyufont anzhiyu-icon-window-restore"></i><span>新窗口打开图片</span></div><div class="rightMenu-item" id="menu-search"><i class="anzhiyufont anzhiyu-icon-magnifying-glass"></i><span>站内搜索</span></div><div class="rightMenu-item" id="menu-searchBaidu"><i class="anzhiyufont anzhiyu-icon-magnifying-glass"></i><span>百度搜索</span></div><div class="rightMenu-item" id="menu-music-toggle"><i class="anzhiyufont anzhiyu-icon-play"></i><span>播放音乐</span></div><div class="rightMenu-item" id="menu-music-back"><i class="anzhiyufont anzhiyu-icon-backward"></i><span>切换到上一首</span></div><div class="rightMenu-item" id="menu-music-forward"><i class="anzhiyufont anzhiyu-icon-forward"></i><span>切换到下一首</span></div><div class="rightMenu-item" id="menu-music-playlist" onclick="window.open(&quot;https://y.qq.com/n/ryqq/playlist/8802438608&quot;, &quot;_blank&quot;);" style="display: none;"><i class="anzhiyufont anzhiyu-icon-radio"></i><span>查看所有歌曲</span></div><div class="rightMenu-item" id="menu-music-copyMusicName"><i class="anzhiyufont anzhiyu-icon-copy"></i><span>复制歌名</span></div></div><div class="rightMenu-group rightMenu-line rightMenuOther"><a class="rightMenu-item menu-link" id="menu-randomPost"><i class="anzhiyufont anzhiyu-icon-shuffle"></i><span>随便逛逛</span></a><a class="rightMenu-item menu-link" href="/categories/"><i class="anzhiyufont anzhiyu-icon-cube"></i><span>博客分类</span></a><a class="rightMenu-item menu-link" href="/tags/"><i class="anzhiyufont anzhiyu-icon-tags"></i><span>文章标签</span></a></div><div class="rightMenu-group rightMenu-line rightMenuOther"><a class="rightMenu-item" id="menu-copy" href="javascript:void(0);"><i class="anzhiyufont anzhiyu-icon-copy"></i><span>复制地址</span></a><a class="rightMenu-item" id="menu-commentBarrage" href="javascript:void(0);"><i class="anzhiyufont anzhiyu-icon-message"></i><span class="menu-commentBarrage-text">关闭热评</span></a><a class="rightMenu-item" id="menu-darkmode" href="javascript:void(0);"><i class="anzhiyufont anzhiyu-icon-circle-half-stroke"></i><span class="menu-darkmode-text">深色模式</span></a><a class="rightMenu-item" id="menu-translate" href="javascript:void(0);"><i class="anzhiyufont anzhiyu-icon-language"></i><span>轉為繁體</span></a></div></div><div id="rightmenu-mask"></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.cbd.int/@fancyapps/ui@6.1.6/dist/fancybox/fancybox.umd.js"></script><script src="https://cdn.cbd.int/instant.page@5.2.0/instantpage.js" type="module"></script><script src="https://cdn.cbd.int/vanilla-lazyload@19.1.3/dist/lazyload.iife.min.js"></script><script src="https://cdn.cbd.int/node-snackbar@0.1.16/dist/snackbar.min.js"></script><canvas id="universe"></canvas><script async src="https://npm.elemecdn.com/anzhiyu-theme-static@1.0.0/dark/dark.js"></script><script>// 消除控制台打印
+var HoldLog = console.log;
+console.log = function () {};
+let now1 = new Date();
+queueMicrotask(() => {
+  const Log = function () {
+    HoldLog.apply(console, arguments);
+  }; //在恢复前输出日志
+  const grt = new Date("04/15/2026 00:00:00"); //此处修改你的建站时间或者网站上线时间
+  now1.setTime(now1.getTime() + 250);
+  const days = (now1 - grt) / 1000 / 60 / 60 / 24;
+  const dnum = Math.floor(days);
+  const ascll = [
+    `欢迎使用安知鱼!`,
+    `生活明朗, 万物可爱`,
+    `
+        
+       █████╗ ███╗   ██╗███████╗██╗  ██╗██╗██╗   ██╗██╗   ██╗
+      ██╔══██╗████╗  ██║╚══███╔╝██║  ██║██║╚██╗ ██╔╝██║   ██║
+      ███████║██╔██╗ ██║  ███╔╝ ███████║██║ ╚████╔╝ ██║   ██║
+      ██╔══██║██║╚██╗██║ ███╔╝  ██╔══██║██║  ╚██╔╝  ██║   ██║
+      ██║  ██║██║ ╚████║███████╗██║  ██║██║   ██║   ╚██████╔╝
+      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝   ╚═╝    ╚═════╝
+        
+        `,
+    "已上线",
+    dnum,
+    "天",
+    "©2026 By 安知鱼 V1.7.1",
+  ];
+  const ascll2 = [`NCC2-036`, `调用前置摄像头拍照成功，识别为【小笨蛋】.`, `Photo captured: `, `🤪`];
+
+  setTimeout(
+    Log.bind(
+      console,
+      `\n%c${ascll[0]} %c ${ascll[1]} %c ${ascll[2]} %c${ascll[3]}%c ${ascll[4]}%c ${ascll[5]}\n\n%c ${ascll[6]}\n`,
+      "color:#425AEF",
+      "",
+      "color:#425AEF",
+      "color:#425AEF",
+      "",
+      "color:#425AEF",
+      ""
+    )
+  );
+  setTimeout(
+    Log.bind(
+      console,
+      `%c ${ascll2[0]} %c ${ascll2[1]} %c \n${ascll2[2]} %c\n${ascll2[3]}\n`,
+      "color:white; background-color:#4fd953",
+      "",
+      "",
+      'background:url("https://npm.elemecdn.com/anzhiyu-blog@1.1.6/img/post/common/tinggge.gif") no-repeat;font-size:450%'
+    )
+  );
+
+  setTimeout(Log.bind(console, "%c WELCOME %c 你好，小笨蛋.", "color:white; background-color:#4f90d9", ""));
+
+  setTimeout(
+    console.warn.bind(
+      console,
+      "%c ⚡ Powered by 安知鱼 %c 你正在访问 xiaver 的博客.",
+      "color:white; background-color:#f0ad4e",
+      ""
+    )
+  );
+
+  setTimeout(Log.bind(console, "%c W23-12 %c 你已打开控制台.", "color:white; background-color:#4f90d9", ""));
+
+  setTimeout(
+    console.warn.bind(console, "%c S013-782 %c 你现在正处于监控中.", "color:white; background-color:#d9534f", "")
+  );
+});</script><script async src="/anzhiyu/random.js"></script><script async="async">(function () {
+  var grt = new Date("04/15/2026 00:00:00"); //设置网站上线时间
+  var now = new Date();
+  var dnum;
+  var hnum;
+  var mnum;
+  var snum;
+  var nowHour;
+
+  // 计算并更新天数、小时数、分钟数和秒数
+  function updateTime() {
+    now = new Date(); // 更新 now 的值
+    nowHour = now.getHours(); // 更新 nowHour 的值
+    var days = (now - grt) / 1000 / 60 / 60 / 24;
+    dnum = Math.floor(days);
+    var hours = (now - grt) / 1000 / 60 / 60 - 24 * dnum;
+    hnum = Math.floor(hours);
+    if (String(hnum).length == 1) {
+      hnum = "0" + hnum;
+    }
+    var minutes = (now - grt) / 1000 / 60 - 24 * 60 * dnum - 60 * hnum;
+    mnum = Math.floor(minutes);
+    if (String(mnum).length == 1) {
+      mnum = "0" + mnum;
+    }
+    var seconds = (now - grt) / 1000 - 24 * 60 * 60 * dnum - 60 * 60 * hnum - 60 * mnum;
+    snum = Math.round(seconds);
+    if (String(snum).length == 1) {
+      snum = "0" + snum;
+    }
+  }
+
+  // 更新网页中显示的网站运行时间
+  function updateHtml() {
+    const footer = document.getElementById("footer");
+    if (!footer) return
+    let currentTimeHtml = "";
+    if (nowHour < 18 && nowHour >= 9) {
+      // 如果是上班时间，默认就是"安知鱼-上班摸鱼中.svg"图片，不需要更改
+      currentTimeHtml = `本站居然运行了 ${dnum} 天<span id='runtime'> ${hnum} 小时 ${mnum} 分 ${snum} 秒 </span><i class='anzhiyufont anzhiyu-icon-heartbeat' style='color:red'></i>`;
+    } else {
+      // 如果是下班时间，插入"安知鱼-下班啦.svg"图片
+      let img = document.querySelector("#workboard .workSituationImg");
+      if (img != null) {
+        img.src = "";
+        img.title = "";
+        img.alt = "";
+      }
+
+      currentTimeHtml = `本站居然运行了 ${dnum} 天<span id='runtime'> ${hnum} 小时 ${mnum} 分 ${snum} 秒 </span><i class='anzhiyufont anzhiyu-icon-heartbeat' style='color:red'></i>`;
+    }
+
+    if (document.getElementById("runtimeTextTip")) {
+      document.getElementById("runtimeTextTip").innerHTML = currentTimeHtml;
+    }
+  }
+
+  setInterval(() => {
+    updateTime();
+    updateHtml();
+  }, 1000);
+})();</script><div class="js-pjax"><input type="hidden" name="page-type" id="page-type" value="post"></div><script async data-pjax src="https://cdn.cbd.int/anzhiyu-theme-static@1.0.0/waterfall/waterfall.js"></script><script src="https://cdn.cbd.int/qrcodejs@1.0.0/qrcode.min.js"></script><link rel="stylesheet" href="https://cdn.cbd.int/anzhiyu-theme-static@1.1.9/icon/ali_iconfont_css.css"><link rel="stylesheet" href="https://cdn.cbd.int/anzhiyu-theme-static@1.0.0/aplayer/APlayer.min.css" media="print" onload="this.media='all'"><script src="https://cdn.cbd.int/anzhiyu-blog-static@1.0.1/js/APlayer.min.js"></script><script src="https://cdn.cbd.int/hexo-anzhiyu-music@1.0.1/assets/js/Meting2.min.js"></script><script src="https://cdn.cbd.int/pjax@0.2.8/pjax.min.js"></script><script>let pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+var pjax = new Pjax({
+  elements: 'a:not([target="_blank"])',
+  selectors: pjaxSelectors,
+  cacheBust: false,
+  analytics: false,
+  scrollRestoration: false
+})
+
+document.addEventListener('pjax:send', function () {
+  // removeEventListener scroll 
+  anzhiyu.removeGlobalFnEvent('pjax')
+  anzhiyu.removeGlobalFnEvent('themeChange')
+
+  document.getElementById('rightside').classList.remove('rightside-show')
+  
+  if (window.aplayers) {
+    for (let i = 0; i < window.aplayers.length; i++) {
+      if (!window.aplayers[i].options.fixed) {
+        window.aplayers[i].destroy()
+      }
+    }
+  }
+
+  typeof typed === 'object' && typed.destroy()
+
+  //reset readmode
+  const $bodyClassList = document.body.classList
+  $bodyClassList.contains('read-mode') && $bodyClassList.remove('read-mode')
+})
+
+document.addEventListener('pjax:complete', function () {
+  window.refreshFn()
+
+  document.querySelectorAll('script[data-pjax]').forEach(item => {
+    const newScript = document.createElement('script')
+    const content = item.text || item.textContent || item.innerHTML || ""
+    Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+    newScript.appendChild(document.createTextNode(content))
+    item.parentNode.replaceChild(newScript, item)
+  })
+
+  GLOBAL_CONFIG.islazyload && window.lazyLoadInstance.update()
+
+  typeof panguInit === 'function' && panguInit()
+
+  // google analytics
+  typeof gtag === 'function' && gtag('config', '', {'page_path': window.location.pathname});
+
+  // baidu analytics
+  typeof _hmt === 'object' && _hmt.push(['_trackPageview',window.location.pathname]);
+
+  typeof loadMeting === 'function' && document.getElementsByClassName('aplayer').length && loadMeting()
+
+  // prismjs
+  typeof Prism === 'object' && Prism.highlightAll()
+})
+
+document.addEventListener('pjax:error', e => {
+  if (e.request.status === 404) {
+    pjax.loadUrl('/404.html')
+  }
+})</script><script charset="UTF-8" src="https://cdn.cbd.int/anzhiyu-theme-static@1.1.5/accesskey/accesskey.js"></script></div><div id="popup-window"><div class="popup-window-title">通知</div><div class="popup-window-divider"></div><div class="popup-window-content"><div class="popup-tip">你好呀</div><div class="popup-link"><i class="anzhiyufont anzhiyu-icon-arrow-circle-right"></i></div></div></div></body></html>
